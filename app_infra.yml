@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description:
+  This template deploys Application infra stack for Project 2 Udacity, with
+
+Parameters: 
+  EnvironmentName:
+    Type: String
+    Description: An environment name that will be prefixed to resource names
+    Default: dev
+  NetworkStackName:
+    Type: String
+    Description: Network stack name
+  EC2AMI:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for the EC2 instance
+  EC2Key:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Key pair for the EC2 instance
+
+Resources: 
+  AppS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-app-bucket
+      AccessControl: Private
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-app-bucket
+
+  # AutoScaling Group
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: 
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet1Id
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet2Id
+      LaunchConfigurationName: !Ref AppLaunchConfiguration
+      TargetGroupARNs:
+        - !Ref AppTargetGroup
+      MinSize: 4
+      MaxSize: 4
+      DesiredCapacity: 4
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-app-asg
+          PropagateAtLaunch: true
+
+  # Launch Configuration
+  AppLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref EC2AMI
+      InstanceType: t2.medium
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${NetworkStackName}-AppSecurityGroupId
+      KeyName: !Ref EC2Key
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp2
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y
+          yum install -y httpd php git
+          systemctl enable httpd
+          systemctl start httpd
+          cd /var/www/html
+          git clone
+  # Load Balancer
+
+  # Target Group
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-app-tg
+      VpcId: 
+        Fn::ImportValue: !Sub ${NetworkStackName}-VpcId
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /index.html
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+Outputs:
