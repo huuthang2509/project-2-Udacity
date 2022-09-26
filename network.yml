@@ -3,10 +3,9 @@ Description:
   This template deploys Network stack for Project 2 Udacity
 
 Parameters: 
-  EnvironmentName:
+  ProjectName:
     Type: String
     Description: An environment name that will be prefixed to resource names
-    Default: dev
   VpcCIDR:
     Description: CIDR block for the VPC
     Type: String
@@ -22,6 +21,7 @@ Parameters:
   PrivateSubnet2CIDR:
     Description: CIDR block for the Private Subnet 2
     Type: String
+
 Resources:
 
   # VPC
@@ -31,7 +31,7 @@ Resources:
       CidrBlock: !Ref VpcCIDR
       Tags:
       - Key: Name
-        Value: !Sub ${EnvironmentName}-VPC
+        Value: !Sub ${ProjectName}-VPC
 
   # Internet Gateway & attach to VPC
   InternetGateway:
@@ -52,6 +52,7 @@ Resources:
     Properties:
       VpcId: !Ref Project2VPC
       CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -71,6 +72,7 @@ Resources:
     Properties:
       VpcId: !Ref Project2VPC
       CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -99,7 +101,7 @@ Resources:
   NatGateway1:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt ElasticIP1.AllocationId
+      AllocationId: !GetAtt NatEIP1.AllocationId
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
@@ -108,7 +110,7 @@ Resources:
   NatGateway2:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt ElasticIP2.AllocationId
+      AllocationId: !GetAtt NatEIP2.AllocationId
       SubnetId: !Ref PublicSubnet2
       Tags:
         - Key: Name
@@ -215,11 +217,27 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           FromPort: -1
           ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  LoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Load Balancer
+      VpcId: !Ref Project2VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
           CidrIp: 0.0.0.0/0
 
 
@@ -230,6 +248,18 @@ Outputs:
     Value: !Ref Project2VPC
     Export:
       Name: !Sub ${AWS::StackName}-VpcId
+
+  AutoScalingSG:
+    Description: Security Group for AutoScaling Group
+    Value: !Ref AutoScalingSG
+    Export:
+      Name: !Sub ${AWS::StackName}-AutoScalingSG
+
+  LoadBalancerSG:
+    Description: Security Group for Load Balancer
+    Value: !Ref LoadBalancerSG
+    Export:
+      Name: !Sub ${AWS::StackName}-LoadBalancerSG
   
   PrivateSubnet1Id:
     Description: Private Subnet 1 ID

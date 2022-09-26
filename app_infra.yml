@@ -3,7 +3,7 @@ Description:
   This template deploys Application infra stack for Project 2 Udacity, with
 
 Parameters: 
-  EnvironmentName:
+  ProjectName:
     Type: String
     Description: An environment name that will be prefixed to resource names
     Default: dev
@@ -21,11 +21,11 @@ Resources:
   AppS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${EnvironmentName}-app-bucket
+      BucketName: !Sub ${ProjectName}-app-bucket
       AccessControl: Private
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-app-bucket
+          Value: !Sub ${ProjectName}-app-bucket
 
   # AutoScaling Group
   AppAutoScalingGroup:
@@ -35,15 +35,17 @@ Resources:
         - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet1Id
         - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet2Id
       LaunchConfigurationName: !Ref AppLaunchConfiguration
-      TargetGroupARNs:
-        - !Ref AppTargetGroup
       MinSize: 4
       MaxSize: 4
       DesiredCapacity: 4
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-app-asg
+          Value: !Sub ${ProjectName}-app-asg
           PropagateAtLaunch: true
+      HealthChecGracePeriod: 150
+      HealthCheckType: ELB
+      TargetGroupARNs:
+        - !Ref AppTargetGroup
 
   # Launch Configuration
   AppLaunchConfiguration:
@@ -52,7 +54,7 @@ Resources:
       ImageId: !Ref EC2AMI
       InstanceType: t2.medium
       SecurityGroups:
-        - Fn::ImportValue: !Sub ${NetworkStackName}-AppSecurityGroupId
+        - Fn::ImportValue: !Sub ${NetworkStackName}-AutoScalingSG
       KeyName: !Ref EC2Key
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
@@ -60,33 +62,44 @@ Resources:
             VolumeSize: 10
             VolumeType: gp2
             DeleteOnTermination: true
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          yum update -y
-          yum install -y httpd php git
-          systemctl enable httpd
-          systemctl start httpd
-          cd /var/www/html
-          git clone
+      # UserData:
+      #   Fn::Base64: !Sub |
+      #     #!/bin/bash -xe
+      #     yum update -y
+      #     yum install -y httpd php git
+      #     systemctl enable httpd
+      #     systemctl start httpd
+      #     cd /var/www/html
+      #     git clone
   # Load Balancer
-
+  AppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${ProjectName}-app-elb
+      Scheme: internet-facing # this is for route requests over the internet to our target, opposed to internal using private ip
+      Subnets:
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet1Id
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet2Id
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${NetworkStackName}-LoadBalancerSG
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-app-elb
   # Target Group
   AppTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${EnvironmentName}-app-tg
+      Name: !Sub ${ProjectName}-app-tg
       VpcId: 
         Fn::ImportValue: !Sub ${NetworkStackName}-VpcId
       Port: 80
       Protocol: HTTP
-      TargetType: instance
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 15
       HealthCheckPath: /index.html
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
       Matcher:
         HttpCode: 200
 Outputs:
