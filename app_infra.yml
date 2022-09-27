@@ -5,8 +5,7 @@ Description:
 Parameters: 
   ProjectName:
     Type: String
-    Description: An environment name that will be prefixed to resource names
-    Default: dev
+    Description: Project name that will be prefixed to resource names
   NetworkStackName:
     Type: String
     Description: Network stack name
@@ -18,14 +17,14 @@ Parameters:
     Description: Key pair for the EC2 instance
 
 Resources: 
-  AppS3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${ProjectName}-app-bucket
-      AccessControl: Private
-      Tags:
-        - Key: Name
-          Value: !Sub ${ProjectName}-app-bucket
+  # AppS3Bucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Sub ${ProjectName}-app-bucket
+  #     AccessControl: Private
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${ProjectName}-app-bucket
 
   # AutoScaling Group
   AppAutoScalingGroup:
@@ -42,7 +41,7 @@ Resources:
         - Key: Name
           Value: !Sub ${ProjectName}-app-asg
           PropagateAtLaunch: true
-      HealthChecGracePeriod: 150
+      HealthCheckGracePeriod: 300
       HealthCheckType: ELB
       TargetGroupARNs:
         - !Ref AppTargetGroup
@@ -71,6 +70,7 @@ Resources:
       #     systemctl start httpd
       #     cd /var/www/html
       #     git clone
+
   # Load Balancer
   AppLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -85,6 +85,32 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${ProjectName}-app-elb
+
+  # Listener
+  AppListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AppLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AppTargetGroup
+
+  # Rule
+  ALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AppTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /
+      ListenerArn: !Ref AppListener
+      Priority: 1
+          
   # Target Group
   AppTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -102,4 +128,9 @@ Resources:
       UnhealthyThresholdCount: 5
       Matcher:
         HttpCode: 200
+
 Outputs:
+
+  ALBDNSName:
+    Description: DNS name of the load balancer
+    Value: !GetAtt AppLoadBalancer.DNSName

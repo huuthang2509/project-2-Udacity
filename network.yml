@@ -5,7 +5,7 @@ Description:
 Parameters: 
   ProjectName:
     Type: String
-    Description: An environment name that will be prefixed to resource names
+    Description: Project name that will be prefixed to resource names
   VpcCIDR:
     Description: CIDR block for the VPC
     Type: String
@@ -261,6 +261,17 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-LoadBalancerSG
   
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnet1Id
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnet2Id
+      
   PrivateSubnet1Id:
     Description: Private Subnet 1 ID
     Value: !Ref PrivateSubnet1
