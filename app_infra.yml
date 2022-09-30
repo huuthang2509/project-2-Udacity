@@ -12,50 +12,57 @@ Parameters:
   EC2AMI:
     Type: AWS::EC2::Image::Id
     Description: AMI ID for the EC2 instance
-  EC2Key:
+  ASCLKey:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Key pair for the EC2 instance
+    Description: Key pair for the EC2 instance in Autoscaling Group, use for debug
+  BastionKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Key pair for the Bastion instance
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket
 
 Resources: 
 
   # IAM Role
-  # RoleAccessS3ForASCL:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: !Sub ${ProjectName}-RoleAccessS3ForASCL
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - autoscaling.amazonaws.com
-  #           Action:
-  #             - 'sts:AssumeRole'
-  #     Path: /
-  #     Policies:
-  #       - PolicyName: !Sub ${ProjectName}-RoleAccessS3ForASCL
-  #         PolicyDocument:
-  #           Version: 2012-10-17
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - 's3:ListBucket'
-  #               Resource:
-  #                 - !Sub arn:aws:s3:::${ProjectName}-ascl
-  #             - Effect: Allow
-  #               Action:
-  #                 - 's3:GetObject'
-  #                 - 's3:PutObject'
-  #               Resource:
-  #                 - !Sub arn:aws:s3:::${ProjectName}-ascl/*
+  RoleAccessS3ForASCL:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-RoleAccessS3ForASCL
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - autoscaling.amazonaws.com
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub ${ProjectName}-RoleAccessS3ForASCL
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub arn:aws:s3:::${BucketName}
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub arn:aws:s3:::${BucketName}/*
 
-  # ASCLInstanceProfile:
-  #   Type: AWS::IAM::InstanceProfile
-  #   Properties:
-  #     Path: /
-  #     Roles:
-  #       - !Ref RoleAccessS3ForASCL
+  ASCLInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref RoleAccessS3ForASCL
 
   # AutoScaling Group
   AppAutoScalingGroup:
@@ -82,11 +89,11 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId: !Ref EC2AMI
-      InstanceType: t2.micro
-      # IamInstanceProfile: !Ref ASCLInstanceProfile
+      InstanceType: t3.small
+      IamInstanceProfile: !Ref ASCLInstanceProfile
       SecurityGroups:
         - Fn::ImportValue: !Sub ${NetworkStackName}-AutoScalingSG
-      KeyName: !Ref EC2Key
+      # KeyName: !Ref ASCLKey # Use for debug
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
@@ -98,9 +105,12 @@ Resources:
           #!/bin/bash
           sudo apt-get update -y
           sudo apt-get install apache2 -y
-          sudo systemctl start apache2.service   
-          cd /var/www/html
-          echo "Udacity Demo Web Server Up and Running!" > index.html
+          sudo systemctl start apache2.service
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          sudo apt install unzip
+          sudo unzip awscliv2.zip
+          sudo ./aws/install
+          aws s3 cp s3://project2uda/index.html /var/www/html/index.html
           
   # Load Balancer
   AppLoadBalancer:
@@ -159,6 +169,21 @@ Resources:
       UnhealthyThresholdCount: 5
       Matcher:
         HttpCode: 200
+
+  # Bastion Host
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref EC2AMI
+      InstanceType: t2.micro
+      KeyName: !Ref BastionKey
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub ${NetworkStackName}-BastionSG
+      SubnetId: 
+        Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet1Id
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-bastion
 
 Outputs:
 

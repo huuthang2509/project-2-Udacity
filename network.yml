@@ -246,6 +246,22 @@ Resources:
           ToPort: 8080
           CidrIp: 0.0.0.0/0
 
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Bastion
+      VpcId: !Ref Project2VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
 
 Outputs:
 
@@ -266,6 +282,12 @@ Outputs:
     Value: !Ref LoadBalancerSG
     Export:
       Name: !Sub ${AWS::StackName}-LoadBalancerSG
+  
+  BastionSG:
+    Description: Security Group for Bastion
+    Value: !Ref BastionSG
+    Export:
+      Name: !Sub ${AWS::StackName}-BastionSG
   
   PublicSubnet1Id:
     Description: Public Subnet 1 ID

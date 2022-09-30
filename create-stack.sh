@@ -4,4 +4,4 @@ aws cloudformation create-stack --stack-name "NetworkStack" --template-body file
 aws cloudformation wait stack-create-complete --stack-name "NetworkStack"
 
 aws cloudformation create-stack --stack-name "ApplicationStack" --template-body file://"app_infra.yml" \
---parameters file://"app_param.conf" --capabilities CAPABILITY_IAM
+--parameters file://"app_param.conf" --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
